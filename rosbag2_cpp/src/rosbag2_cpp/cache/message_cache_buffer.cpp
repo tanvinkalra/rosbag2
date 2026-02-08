@@ -104,5 +104,12 @@ const std::vector<CacheBufferInterface::buffer_element_t> & MessageCacheBuffer::
   return buffer_;
 }
 
+bool MessageCacheBuffer::get_utilisation(size_t & used_bytes, size_t & capacity_bytes) const
+{
+  used_bytes = buffer_bytes_size_;
+  capacity_bytes = max_bytes_size_;
+  return true;
+}
+
 }  // namespace cache
 }  // namespace rosbag2_cpp

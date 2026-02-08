@@ -66,6 +66,15 @@ public:
    *   \return a vector containing messages in the buffer.
    */
   virtual const std::vector<buffer_element_t> & data() = 0;
+
+  /**
+   *   Optional: get used and capacity in bytes for logging/stats.
+   *   \param used_bytes Set to the number of bytes currently in the buffer.
+   *   \param capacity_bytes Set to the maximum bytes the buffer can hold (0 if duration-only).
+   *   \return true if buffer supports it (used_bytes and capacity_bytes set), false otherwise.
+   *   When capacity is 0 (duration-only bound), capacity_bytes is 0 and ratio should be reported as N/A.
+   */
+  virtual bool get_utilisation(size_t & used_bytes, size_t & capacity_bytes) const { return false; }
 };
 
 }  // namespace cache
