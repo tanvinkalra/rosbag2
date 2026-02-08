@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
 #include <memory>
+#include <sstream>
 
 #include "rosbag2_cpp/cache/cache_consumer.hpp"
 #include "rosbag2_cpp/logging.hpp"
@@ -67,6 +69,32 @@ void CacheConsumer::exec_consuming()
     message_cache_->swap_buffers();
     // Get the current consumer buffer.
     auto consumer_buffer = message_cache_->get_consumer_buffer();
+
+    // Log flush time and buffer space utilisation
+    size_t used_bytes = 0u;
+    size_t capacity_bytes = 0u;
+    if (!consumer_buffer->get_utilisation(used_bytes, capacity_bytes)) {
+      for (const auto & msg : consumer_buffer->data()) {
+        if (msg && msg->serialized_data) {
+          used_bytes += msg->serialized_data->buffer_length;
+        }
+      }
+    }
+    const auto flush_time = std::chrono::system_clock::now();
+    const auto flush_time_s = std::chrono::duration_cast<std::chrono::seconds>(
+      flush_time.time_since_epoch()).count();
+    std::ostringstream log_msg;
+    log_msg << "Buffer flush at " << flush_time_s << " s: messages=" << consumer_buffer->size()
+            << ", used=" << used_bytes << " B";
+    if (capacity_bytes > 0u) {
+      const double ratio_pct = (100.0 * static_cast<double>(used_bytes)) /
+        static_cast<double>(capacity_bytes);
+      log_msg << ", total=" << capacity_bytes << " B, ratio=" << ratio_pct << "%";
+    } else {
+      log_msg << ", total=N/A (duration-bound), ratio=N/A";
+    }
+    ROSBAG2_CPP_LOG_INFO_STREAM(log_msg.str());
+
     consume_callback_(consumer_buffer->data());
     consumer_buffer->clear();
     message_cache_->release_consumer_buffer();

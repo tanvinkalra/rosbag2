@@ -68,6 +68,9 @@ public:
   /// Get buffer data
   const std::vector<CacheBufferInterface::buffer_element_t> & data() override;
 
+  /// Get used and capacity in bytes for logging/stats
+  bool get_utilisation(size_t & used_bytes, size_t & capacity_bytes) const override;
+
 private:
   std::deque<CacheBufferInterface::buffer_element_t> buffer_;
   std::vector<CacheBufferInterface::buffer_element_t> msg_vector_;
