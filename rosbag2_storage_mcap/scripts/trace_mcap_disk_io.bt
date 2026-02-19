@@ -15,7 +15,7 @@ BEGIN {
   if ($# < 1) {
     printf("Usage: sudo bpftrace trace_mcap_disk_io.bt <PID>\n");
     printf("  PID = process ID of the recording (e.g. ros2 bag record)\n");
-    exit(1);
+    exit();
   }
   @target_pid = $1;
 }
