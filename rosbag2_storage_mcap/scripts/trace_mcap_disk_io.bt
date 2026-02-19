@@ -11,21 +11,22 @@
 //   sudo bpftrace rosbag2_storage_mcap/scripts/trace_mcap_disk_io.bt $!
 //
 
-if ($# < 1) {
-  printf("Usage: sudo bpftrace trace_mcap_disk_io.bt <PID>\n");
-  printf("  PID = process ID of the recording (e.g. ros2 bag record)\n");
-  exit(1);
+BEGIN {
+  if ($# < 1) {
+    printf("Usage: sudo bpftrace trace_mcap_disk_io.bt <PID>\n");
+    printf("  PID = process ID of the recording (e.g. ros2 bag record)\n");
+    exit(1);
+  }
+  @target_pid = $1;
 }
 
-$target_pid = $1;
-
-tracepoint:syscalls:sys_enter_write /pid == $target_pid/ {
+tracepoint:syscalls:sys_enter_write /pid == @target_pid/ {
   @write_enter[tid] = nsecs;
   @write_fd[tid] = args->fd;
   @write_count[tid] = args->count;
 }
 
-tracepoint:syscalls:sys_exit_write /pid == $target_pid/ {
+tracepoint:syscalls:sys_exit_write /pid == @target_pid/ {
   $lat_ns = nsecs - @write_enter[tid];
   printf("%-10d write      fd=%d count=%llu ret=%ld latency_us=%ld\n",
     nsecs / 1000000, @write_fd[tid], @write_count[tid], args->ret,
@@ -35,13 +36,13 @@ tracepoint:syscalls:sys_exit_write /pid == $target_pid/ {
   delete(@write_count[tid]);
 }
 
-tracepoint:syscalls:sys_enter_pwrite64 /pid == $target_pid/ {
+tracepoint:syscalls:sys_enter_pwrite64 /pid == @target_pid/ {
   @pwrite_enter[tid] = nsecs;
   @pwrite_fd[tid] = args->fd;
   @pwrite_count[tid] = args->count;
 }
 
-tracepoint:syscalls:sys_exit_pwrite64 /pid == $target_pid/ {
+tracepoint:syscalls:sys_exit_pwrite64 /pid == @target_pid/ {
   $lat_ns = nsecs - @pwrite_enter[tid];
   printf("%-10d pwrite64   fd=%d count=%llu ret=%ld latency_us=%ld\n",
     nsecs / 1000000, @pwrite_fd[tid], @pwrite_count[tid], args->ret,
@@ -51,12 +52,12 @@ tracepoint:syscalls:sys_exit_pwrite64 /pid == $target_pid/ {
   delete(@pwrite_count[tid]);
 }
 
-tracepoint:syscalls:sys_enter_fsync /pid == $target_pid/ {
+tracepoint:syscalls:sys_enter_fsync /pid == @target_pid/ {
   @fsync_enter[tid] = nsecs;
   @fsync_fd[tid] = args->fd;
 }
 
-tracepoint:syscalls:sys_exit_fsync /pid == $target_pid/ {
+tracepoint:syscalls:sys_exit_fsync /pid == @target_pid/ {
   $lat_ns = nsecs - @fsync_enter[tid];
   printf("%-10d fsync      fd=%d ret=%ld latency_us=%ld\n",
     nsecs / 1000000, @fsync_fd[tid], args->ret, $lat_ns / 1000);
@@ -64,12 +65,12 @@ tracepoint:syscalls:sys_exit_fsync /pid == $target_pid/ {
   delete(@fsync_fd[tid]);
 }
 
-tracepoint:syscalls:sys_enter_fdatasync /pid == $target_pid/ {
+tracepoint:syscalls:sys_enter_fdatasync /pid == @target_pid/ {
   @fdatasync_enter[tid] = nsecs;
   @fdatasync_fd[tid] = args->fd;
 }
 
-tracepoint:syscalls:sys_exit_fdatasync /pid == $target_pid/ {
+tracepoint:syscalls:sys_exit_fdatasync /pid == @target_pid/ {
   $lat_ns = nsecs - @fdatasync_enter[tid];
   printf("%-10d fdatasync  fd=%d ret=%ld latency_us=%ld\n",
     nsecs / 1000000, @fdatasync_fd[tid], args->ret, $lat_ns / 1000);
