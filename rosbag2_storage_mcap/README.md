@@ -141,6 +141,25 @@ compressionLevel: "Slowest"
 chunkSize: 4194304 # 4 * 1024 * 1024
 ```
 
+### Profiling and disk I/O
+
+**In-process timing (DEBUG log level):**
+
+- **SequentialWriter::write_messages** (rosbag2_cpp): Set log level to DEBUG for `rosbag2_cpp` to log per-batch timings: total time, time in `storage_->write()`, and time in the metadata update (topics message count). Example: `ros2 bag record ... --ros-args --log-level rosbag2_cpp:=debug`
+- **MCAPStorage::write**: Set log level to DEBUG for `rosbag2_storage_mcap` to log per-batch duration and message count. Example: `--ros-args --log-level rosbag2_storage_mcap:=debug`
+
+**Tracking actual disk I/O (eBPF):**
+
+To see which syscalls the MCAP writer triggers and how much data is written (e.g. `write`, `pwrite64`, `fsync`, `fdatasync`), use eBPF so no code changes are required. A bpftrace script is provided:
+
+1. Start recording in one terminal: `ros2 bag record -s mcap -o /tmp/bag /some_topic`
+2. Note the process PID (e.g. from `pgrep -f "ros2 bag record"` or the shell if run in background with `$!`).
+3. Run the script with root: `sudo bpftrace scripts/trace_mcap_disk_io.bt <PID>`
+
+The script prints each write-related syscall with file descriptor, byte count (for write/pwrite64), return value, and latency in microseconds. Requires bpftrace (e.g. `sudo apt install bpftrace`) and Linux. See the script header in [scripts/trace_mcap_disk_io.bt](scripts/trace_mcap_disk_io.bt) for details.
+
+**Alternative (no eBPF):** Use `strace -e write,pwrite64,fsync,fdatasync -f -p <PID>` to trace the same syscalls; higher overhead and noisier than bpftrace.
+
 ### ROS 2 Distro maintenance
 
 Whenever a ROS 2 distribution reaches EOL, search for comments marked COMPATIBILITY - which may no longer be needed when no new releases will be made for that distro.

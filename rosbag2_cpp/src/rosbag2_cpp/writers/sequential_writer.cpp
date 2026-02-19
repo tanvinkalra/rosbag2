@@ -458,7 +458,12 @@ void SequentialWriter::write_messages(
   if (messages.empty()) {
     return;
   }
+  const auto t_start = std::chrono::steady_clock::now();
+
+  const auto t_before_storage = std::chrono::steady_clock::now();
   storage_->write(messages);
+  const auto t_after_storage = std::chrono::steady_clock::now();
+
   if (storage_options_.snapshot_mode) {
     // Update FileInformation about the last file in metadata in case of snapshot mode
     const auto first_msg_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
@@ -470,12 +475,28 @@ void SequentialWriter::write_messages(
     metadata_.files.back().message_count = messages.size();
   }
   metadata_.message_count += messages.size();
-  std::lock_guard<std::mutex> lock(topics_info_mutex_);
-  for (const auto & msg : messages) {
-    if (topics_names_to_info_.find(msg->topic_name) != topics_names_to_info_.end()) {
-      topics_names_to_info_[msg->topic_name].message_count++;
+
+  const auto t_before_metadata = std::chrono::steady_clock::now();
+  {
+    std::lock_guard<std::mutex> lock(topics_info_mutex_);
+    for (const auto & msg : messages) {
+      if (topics_names_to_info_.find(msg->topic_name) != topics_names_to_info_.end()) {
+        topics_names_to_info_[msg->topic_name].message_count++;
+      }
     }
   }
+  const auto t_end = std::chrono::steady_clock::now();
+
+  using namespace std::chrono;
+  const auto T_total_us = duration_cast<microseconds>(t_end - t_start).count();
+  const auto T_storage_us = duration_cast<microseconds>(t_after_storage - t_before_storage).count();
+  const auto T_metadata_us =
+    duration_cast<microseconds>(t_end - t_before_metadata).count();
+  const auto T_other_us = T_total_us - T_storage_us - T_metadata_us;
+  ROSBAG2_CPP_LOG_DEBUG_STREAM(
+    "write_messages profile: total=" << T_total_us << " us, storage=" << T_storage_us <<
+      " us, metadata=" << T_metadata_us << " us, other=" << T_other_us << " us, n=" <<
+      messages.size());
 }
 
 void SequentialWriter::add_event_callbacks(const bag_events::WriterEventCallbacks & callbacks)
