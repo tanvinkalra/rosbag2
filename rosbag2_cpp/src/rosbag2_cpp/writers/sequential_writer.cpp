@@ -494,9 +494,9 @@ void SequentialWriter::write_messages(
     duration_cast<microseconds>(t_end - t_before_metadata).count();
   const auto T_other_us = T_total_us - T_storage_us - T_metadata_us;
   ROSBAG2_CPP_LOG_DEBUG_STREAM(
-    "write_messages profile: total=" << T_total_us << " us, storage=" << T_storage_us <<
-      " us, metadata=" << T_metadata_us << " us, other=" << T_other_us << " us, n=" <<
-      messages.size());
+    "PROFILE component=writer total_us=" << T_total_us <<
+      " storage_us=" << T_storage_us << " metadata_us=" << T_metadata_us <<
+      " other_us=" << T_other_us);
 }
 
 void SequentialWriter::add_event_callbacks(const bag_events::WriterEventCallbacks & callbacks)

@@ -145,8 +145,16 @@ chunkSize: 4194304 # 4 * 1024 * 1024
 
 **In-process timing (DEBUG log level):**
 
-- **SequentialWriter::write_messages** (rosbag2_cpp): Set log level to DEBUG for `rosbag2_cpp` to log per-batch timings: total time, time in `storage_->write()`, and time in the metadata update (topics message count). Example: `ros2 bag record ... --ros-args --log-level rosbag2_cpp:=debug`
-- **MCAPStorage::write**: Set log level to DEBUG for `rosbag2_storage_mcap` to log per-batch duration and message count. Example: `--ros-args --log-level rosbag2_storage_mcap:=debug`
+Set log level to DEBUG for `rosbag2_cpp` to enable profiling logs for the write path (cache flush and writer timings). Example: `ros2 bag record -s mcap ... --ros-args --log-level rosbag2_cpp:=debug`
+
+**Profiling log format:**
+
+All profiling lines start with the prefix `PROFILE` and use `key=value` pairs so they can be grepped and parsed for visualization or bottleneck analysis. Per batch, two lines are emitted in order: first a cache flush line, then a writer line (same batch). Correlate by order or by the `flush_id` on the cache line (the following writer line applies to that flush).
+
+- **Cache (flush):** `PROFILE component=cache flush_id=<id> wall_s=<sec_since_epoch> messages=<n> used_B=<bytes> capacity_B=<bytes> ratio_pct=<pct|N/A>`
+- **Writer:** `PROFILE component=writer total_us=<us> storage_us=<us> metadata_us=<us> other_us=<us>` (storage_us is time in storage write, e.g. MCAP; message count is on the preceding cache line)
+
+Example: extract profiling lines to a file, then parse by key=value (e.g. `grep PROFILE` from the console output, or redirect logs and filter).
 
 **Tracking actual disk I/O (eBPF):**
 

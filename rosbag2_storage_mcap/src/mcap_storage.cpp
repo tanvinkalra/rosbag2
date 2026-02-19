@@ -676,17 +676,10 @@ void MCAPStorage::write(std::shared_ptr<const rosbag2_storage::SerializedBagMess
 void MCAPStorage::write(
   const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & msgs)
 {
-  const auto t_start = std::chrono::steady_clock::now();
   std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
   for (const auto & msg : msgs) {
     write_lock_free(msg);
   }
-  const auto t_end = std::chrono::steady_clock::now();
-  const auto T_batch_us =
-    std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
-  RCUTILS_LOG_DEBUG_NAMED(
-    LOG_NAME, "MCAPStorage::write batch: %lld us, n=%zu",
-    static_cast<long long>(T_batch_us), msgs.size());
 }
 
 void MCAPStorage::write_lock_free(std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg)
