@@ -20,8 +20,8 @@ tracepoint:syscalls:sys_enter_write /pid == (uint64)$1/ {
 
 tracepoint:syscalls:sys_exit_write /pid == (uint64)$1/ {
   $lat_ns = nsecs - @write_enter[tid];
-  printf("%-10d write      fd=%d count=%llu ret=%ld latency_us=%ld\n",
-    nsecs / 1000000, @write_fd[tid], @write_count[tid], args->ret,
+  printf("%-12lld write      fd=%d count=%llu ret=%ld latency_us=%ld\n",
+    (int64)(nsecs / 1000000), @write_fd[tid], @write_count[tid], args->ret,
     $lat_ns / 1000);
   delete(@write_enter[tid]);
   delete(@write_fd[tid]);
@@ -36,8 +36,8 @@ tracepoint:syscalls:sys_enter_pwrite64 /pid == (uint64)$1/ {
 
 tracepoint:syscalls:sys_exit_pwrite64 /pid == (uint64)$1/ {
   $lat_ns = nsecs - @pwrite_enter[tid];
-  printf("%-10d pwrite64   fd=%d count=%llu ret=%ld latency_us=%ld\n",
-    nsecs / 1000000, @pwrite_fd[tid], @pwrite_count[tid], args->ret,
+  printf("%-12lld pwrite64   fd=%d count=%llu ret=%ld latency_us=%ld\n",
+    (int64)(nsecs / 1000000), @pwrite_fd[tid], @pwrite_count[tid], args->ret,
     $lat_ns / 1000);
   delete(@pwrite_enter[tid]);
   delete(@pwrite_fd[tid]);
@@ -51,8 +51,8 @@ tracepoint:syscalls:sys_enter_fsync /pid == (uint64)$1/ {
 
 tracepoint:syscalls:sys_exit_fsync /pid == (uint64)$1/ {
   $lat_ns = nsecs - @fsync_enter[tid];
-  printf("%-10d fsync      fd=%d ret=%ld latency_us=%ld\n",
-    nsecs / 1000000, @fsync_fd[tid], args->ret, $lat_ns / 1000);
+  printf("%-12lld fsync      fd=%d ret=%ld latency_us=%ld\n",
+    (int64)(nsecs / 1000000), @fsync_fd[tid], args->ret, $lat_ns / 1000);
   delete(@fsync_enter[tid]);
   delete(@fsync_fd[tid]);
 }
@@ -64,8 +64,8 @@ tracepoint:syscalls:sys_enter_fdatasync /pid == (uint64)$1/ {
 
 tracepoint:syscalls:sys_exit_fdatasync /pid == (uint64)$1/ {
   $lat_ns = nsecs - @fdatasync_enter[tid];
-  printf("%-10d fdatasync  fd=%d ret=%ld latency_us=%ld\n",
-    nsecs / 1000000, @fdatasync_fd[tid], args->ret, $lat_ns / 1000);
+  printf("%-12lld fdatasync  fd=%d ret=%ld latency_us=%ld\n",
+    (int64)(nsecs / 1000000), @fdatasync_fd[tid], args->ret, $lat_ns / 1000);
   delete(@fdatasync_enter[tid]);
   delete(@fdatasync_fd[tid]);
 }
