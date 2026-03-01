@@ -96,7 +96,7 @@ struct McapWriterOptions : mcap::McapWriterOptions
   McapWriterOptions()
       : mcap::McapWriterOptions("ros2")
   {
-    fsyncIntervalBytes = 256ULL * 1024 * 1024;
+    fsyncIntervalBytes = 1000ULL * 1024 * 1024;
   }
 };
 }  // namespace
