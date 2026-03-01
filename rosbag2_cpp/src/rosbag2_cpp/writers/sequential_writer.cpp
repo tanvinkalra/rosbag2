@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -44,6 +45,11 @@ std::string strip_parent_path(const std::string & relative_path)
 {
   return rcpputils::fs::path(relative_path).filename().string();
 }
+
+// Rate limiting for write_messages (0 = disabled)
+constexpr uint64_t kMaxWriteRateMbPerSec = 800;
+constexpr uint64_t kWriteChunkMb = 50;
+
 }  // namespace
 
 SequentialWriter::SequentialWriter(
@@ -458,45 +464,99 @@ void SequentialWriter::write_messages(
   if (messages.empty()) {
     return;
   }
-  const auto t_start = std::chrono::steady_clock::now();
-
-  const auto t_before_storage = std::chrono::steady_clock::now();
-  storage_->write(messages);
-  const auto t_after_storage = std::chrono::steady_clock::now();
-
-  if (storage_options_.snapshot_mode) {
-    // Update FileInformation about the last file in metadata in case of snapshot mode
-    const auto first_msg_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
-      std::chrono::nanoseconds(messages.front()->time_stamp));
-    const auto last_msg_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
-      std::chrono::nanoseconds(messages.back()->time_stamp));
-    metadata_.files.back().starting_time = first_msg_timestamp;
-    metadata_.files.back().duration = last_msg_timestamp - first_msg_timestamp;
-    metadata_.files.back().message_count = messages.size();
-  }
-  metadata_.message_count += messages.size();
-
-  const auto t_before_metadata = std::chrono::steady_clock::now();
-  {
-    std::lock_guard<std::mutex> lock(topics_info_mutex_);
-    for (const auto & msg : messages) {
-      if (topics_names_to_info_.find(msg->topic_name) != topics_names_to_info_.end()) {
-        topics_names_to_info_[msg->topic_name].message_count++;
-      }
-    }
-  }
-  const auto t_end = std::chrono::steady_clock::now();
 
   using namespace std::chrono;
+
+  if (kMaxWriteRateMbPerSec == 0u) {
+    // No rate limiting: write entire batch as before
+    const auto t_before_storage = steady_clock::now();
+    storage_->write(messages);
+    const auto t_after_storage = steady_clock::now();
+
+    if (storage_options_.snapshot_mode) {
+      const auto first_msg_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
+        std::chrono::nanoseconds(messages.front()->time_stamp));
+      const auto last_msg_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
+        std::chrono::nanoseconds(messages.back()->time_stamp));
+      metadata_.files.back().starting_time = first_msg_timestamp;
+      metadata_.files.back().duration = last_msg_timestamp - first_msg_timestamp;
+      metadata_.files.back().message_count = messages.size();
+    }
+    metadata_.message_count += messages.size();
+
+    {
+      std::lock_guard<std::mutex> lock(topics_info_mutex_);
+      for (const auto & msg : messages) {
+        if (topics_names_to_info_.find(msg->topic_name) != topics_names_to_info_.end()) {
+          topics_names_to_info_[msg->topic_name].message_count++;
+        }
+      }
+    }
+
+    const auto T_storage_us = duration_cast<microseconds>(t_after_storage - t_before_storage).count();
+    ROSBAG2_CPP_LOG_DEBUG_STREAM(
+      "PROFILE component=writer storage_us=" << T_storage_us);
+    return;
+  }
+
+  // Rate-limited chunked write
+  const size_t chunk_bytes_target = kWriteChunkMb * 1024u * 1024u;
+  const uint64_t rate = kMaxWriteRateMbPerSec;
+
+  auto it = messages.begin();
+  const auto t_start = steady_clock::now();
+  uint64_t total_storage_us = 0u;
+
+  while (it != messages.end()) {
+    std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> chunk;
+    size_t chunk_bytes = 0u;
+
+    while (it != messages.end() &&
+      (chunk_bytes < chunk_bytes_target || chunk.empty()))
+    {
+      const auto & msg = *it;
+      const size_t msg_bytes = msg->serialized_data ?
+        msg->serialized_data->buffer_length : 0u;
+      chunk.push_back(msg);
+      chunk_bytes += msg_bytes;
+      ++it;
+    }
+
+    if (chunk.empty()) {
+      break;
+    }
+
+    const auto t_before_storage = steady_clock::now();
+    storage_->write(chunk);
+    const auto t_after_storage = steady_clock::now();
+    const auto actual_write_us =
+      duration_cast<microseconds>(t_after_storage - t_before_storage).count();
+    total_storage_us += actual_write_us;
+
+    metadata_.message_count += chunk.size();
+
+    {
+      std::lock_guard<std::mutex> lock(topics_info_mutex_);
+      for (const auto & msg : chunk) {
+        if (topics_names_to_info_.find(msg->topic_name) != topics_names_to_info_.end()) {
+          topics_names_to_info_[msg->topic_name].message_count++;
+        }
+      }
+    }
+
+    const int64_t target_interval_us = static_cast<int64_t>(
+      (chunk_bytes * 1'000'000) / (rate * 1024u * 1024u));
+    const int64_t sleep_us = target_interval_us - static_cast<int64_t>(actual_write_us);
+    if (sleep_us > 0) {
+      std::this_thread::sleep_for(microseconds(sleep_us));
+    }
+  }
+
+  const auto t_end = steady_clock::now();
   const auto T_total_us = duration_cast<microseconds>(t_end - t_start).count();
-  const auto T_storage_us = duration_cast<microseconds>(t_after_storage - t_before_storage).count();
-  const auto T_metadata_us =
-    duration_cast<microseconds>(t_end - t_before_metadata).count();
-  const auto T_other_us = T_total_us - T_storage_us - T_metadata_us;
   ROSBAG2_CPP_LOG_DEBUG_STREAM(
     "PROFILE component=writer total_us=" << T_total_us <<
-      " storage_us=" << T_storage_us << " metadata_us=" << T_metadata_us <<
-      " other_us=" << T_other_us);
+      " storage_us=" << total_storage_us);
 }
 
 void SequentialWriter::add_event_callbacks(const bag_events::WriterEventCallbacks & callbacks)
