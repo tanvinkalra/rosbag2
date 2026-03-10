@@ -220,6 +220,12 @@ public:
   void write(std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg) override;
   void write(
     const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & msg) override;
+  void write(
+    std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg,
+    bool flush_after) override;
+  void write(
+    const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & msgs,
+    bool flush_after) override;
   void create_topic(const rosbag2_storage::TopicMetadata & topic) override;
   void remove_topic(const rosbag2_storage::TopicMetadata & topic) override;
 #ifdef ROSBAG2_STORAGE_MCAP_HAS_UPDATE_METADATA
@@ -227,7 +233,9 @@ public:
 #endif
 
 private:
-  void write_lock_free(std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg);
+  void write_lock_free(
+    std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg,
+    bool flush_after = false);
   void open_impl(const std::string & uri, const std::string & preset_profile,
                  rosbag2_storage::storage_interfaces::IOFlag io_flag,
                  const std::string & storage_config_uri);
@@ -672,7 +680,7 @@ uint64_t MCAPStorage::get_minimum_split_file_size() const
 void MCAPStorage::write(std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg)
 {
   std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
-  write_lock_free(msg);
+  write_lock_free(msg, false);
 }
 
 void MCAPStorage::write(
@@ -680,11 +688,32 @@ void MCAPStorage::write(
 {
   std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
   for (const auto & msg : msgs) {
-    write_lock_free(msg);
+    write_lock_free(msg, false);
   }
 }
 
-void MCAPStorage::write_lock_free(std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg)
+void MCAPStorage::write(
+  std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg,
+  bool flush_after)
+{
+  std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
+  write_lock_free(msg, flush_after);
+}
+
+void MCAPStorage::write(
+  const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & msgs,
+  bool flush_after)
+{
+  std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
+  const size_t n = msgs.size();
+  for (size_t i = 0; i < n; ++i) {
+    write_lock_free(msgs[i], (i == n - 1) && flush_after);
+  }
+}
+
+void MCAPStorage::write_lock_free(
+  std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg,
+  bool flush_after)
 {
   const auto topic_it = topics_.find(msg->topic_name);
   if (topic_it == topics_.end()) {
@@ -708,7 +737,7 @@ void MCAPStorage::write_lock_free(std::shared_ptr<const rosbag2_storage::Seriali
   mcap_msg.publishTime = mcap_msg.logTime;
   mcap_msg.dataSize = msg->serialized_data->buffer_length;
   mcap_msg.data = reinterpret_cast<const std::byte *>(msg->serialized_data->buffer);
-  const auto status = mcap_writer_->write(mcap_msg);
+  const auto status = mcap_writer_->write(mcap_msg, flush_after);
   if (!status.ok()) {
     throw std::runtime_error{std::string{"Failed to write "} +
                              std::to_string(msg->serialized_data->buffer_length) +

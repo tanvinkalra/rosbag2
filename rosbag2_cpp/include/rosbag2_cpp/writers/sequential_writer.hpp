@@ -15,6 +15,7 @@
 #ifndef ROSBAG2_CPP__WRITERS__SEQUENTIAL_WRITER_HPP_
 #define ROSBAG2_CPP__WRITERS__SEQUENTIAL_WRITER_HPP_
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -28,6 +29,7 @@
 #include "rosbag2_cpp/cache/message_cache_interface.hpp"
 #include "rosbag2_cpp/converter.hpp"
 #include "rosbag2_cpp/serialization_format_converter_factory.hpp"
+#include "rosbag2_cpp/throughput_predictor.hpp"
 #include "rosbag2_cpp/writer_interfaces/base_writer_interface.hpp"
 #include "rosbag2_cpp/visibility_control.hpp"
 
@@ -181,6 +183,12 @@ private:
   bool is_first_message_ {true};
 
   bag_events::EventCallbackManager callback_manager_;
+
+  // Throughput-based predictive flush
+  std::unique_ptr<ThroughputPredictor> throughput_predictor_;
+  int64_t last_flush_time_ns_ {0};
+  std::atomic<bool> flush_after_next_batch_ {false};
+  static constexpr int64_t kMinFlushIntervalNs = 2LL * 1000 * 1000 * 1000;  // 2 s
 };
 
 }  // namespace writers

@@ -54,6 +54,10 @@ public:
   // Enable snapshot mode.
   // Defaults to disabled.
   bool snapshot_mode = false;
+
+  // Enable throughput-based predictive flush: predict low-throughput windows and
+  // pass flush_after to storage write during those windows. Defaults to disabled.
+  bool enable_throughput_predictive_flush = false;
 };
 
 }  // namespace rosbag2_storage

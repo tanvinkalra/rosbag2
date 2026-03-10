@@ -159,6 +159,10 @@ void SequentialWriter::open(
   }
 
   init_metadata();
+
+  if (storage_options_.enable_throughput_predictive_flush) {
+    throughput_predictor_ = std::make_unique<ThroughputPredictor>();
+  }
 }
 
 void SequentialWriter::close()
@@ -373,12 +377,28 @@ void SequentialWriter::write(std::shared_ptr<rosbag2_storage::SerializedBagMessa
 
   auto converted_msg = get_writeable_message(message);
 
+  bool flush_after = false;
+  if (throughput_predictor_) {
+    const size_t bytes = converted_msg->serialized_data ?
+      static_cast<size_t>(converted_msg->serialized_data->buffer_length) : 0u;
+    throughput_predictor_->feed(message->time_stamp, bytes);
+    if (throughput_predictor_->is_in_predicted_trough_now(message->time_stamp) &&
+      (message->time_stamp - last_flush_time_ns_ >= kMinFlushIntervalNs))
+    {
+      flush_after = true;
+      last_flush_time_ns_ = message->time_stamp;
+    }
+  }
+
   metadata_.files.back().message_count++;
   if (storage_options_.max_cache_size == 0u) {
     // If cache size is set to zero, we write to storage directly
-    storage_->write(converted_msg);
+    storage_->write(converted_msg, flush_after);
     ++topic_information->message_count;
   } else {
+    if (flush_after) {
+      flush_after_next_batch_.store(true);
+    }
     // Otherwise, use cache buffer
     message_cache_->push(converted_msg);
   }
@@ -461,7 +481,8 @@ void SequentialWriter::write_messages(
   const auto t_start = std::chrono::steady_clock::now();
 
   const auto t_before_storage = std::chrono::steady_clock::now();
-  storage_->write(messages);
+  const bool flush_after = flush_after_next_batch_.exchange(false);
+  storage_->write(messages, flush_after);
   const auto t_after_storage = std::chrono::steady_clock::now();
 
   if (storage_options_.snapshot_mode) {

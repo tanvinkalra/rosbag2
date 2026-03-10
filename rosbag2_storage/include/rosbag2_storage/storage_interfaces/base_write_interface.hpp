@@ -38,6 +38,34 @@ public:
 
   virtual void write(const std::vector<std::shared_ptr<const SerializedBagMessage>> & msg) = 0;
 
+  /**
+   * Write a message and optionally request flush/fsync after this write.
+   * Default implementation ignores flush_after and calls write(msg).
+   * \param msg The message to write
+   * \param flush_after If true, the backend should persist buffered data (e.g. fsync) after writing.
+   */
+  virtual void write(
+    std::shared_ptr<const SerializedBagMessage> msg,
+    bool flush_after)
+  {
+    (void)flush_after;
+    write(msg);
+  }
+
+  /**
+   * Write a batch of messages and optionally request flush after the last write.
+   * Default implementation ignores flush_after and calls write(msgs).
+   * \param msgs The messages to write
+   * \param flush_after If true, the backend should persist buffered data after writing the batch.
+   */
+  virtual void write(
+    const std::vector<std::shared_ptr<const SerializedBagMessage>> & msgs,
+    bool flush_after)
+  {
+    (void)flush_after;
+    write(msgs);
+  }
+
   virtual void create_topic(const TopicMetadata & topic) = 0;
 
   virtual void remove_topic(const TopicMetadata & topic) = 0;

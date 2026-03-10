@@ -2,6 +2,9 @@
 
 This package provides a [storage plugin](https://github.com/ros2/rosbag2#storage-format-plugin-architecture) for rosbag2 which extends it with support for the [MCAP](https://mcap.dev) file format.
 
+### MCAP library
+
+This plugin can use a custom MCAP C++ build that adds optional fsync on write for throughput-based flush: [v.0.0.28](https://github.com/tanvinkalra/mcap/releases/tag/v.0.0.28) (tanvinkalra/mcap fork).
 
 [![ROS Foxy version](https://img.shields.io/ros/v/foxy/rosbag2_storage_mcap)](https://index.ros.org/p/rosbag2_storage_mcap/github-ros2-rosbag2/#foxy)
 [![ROS Galactic version](https://img.shields.io/ros/v/galactic/rosbag2_storage_mcap)](https://index.ros.org/p/rosbag2_storage_mcap/github-ros2-rosbag2/#galactic)
