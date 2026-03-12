@@ -37,6 +37,9 @@ ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & confi
 
 void ThroughputPredictor::feed(int64_t timestamp_ns, size_t bytes)
 {
+  if (samples_.empty() && first_sample_time_ns_ < 0) {
+    first_sample_time_ns_ = timestamp_ns;
+  }
   if (config_.max_samples > 0 && samples_.size() >= config_.max_samples) {
     samples_.pop_front();
   }
@@ -155,6 +158,11 @@ bool ThroughputPredictor::in_trough_window(int64_t t_ns, int64_t trough_ns) cons
 bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) const
 {
   if (!ready_ || period_ns_ <= 0) {
+    return false;
+  }
+  const int64_t min_learning_ns = static_cast<int64_t>(config_.min_learning_time_sec * NSEC_PER_SEC);
+  if (min_learning_ns > 0 && first_sample_time_ns_ >= 0 &&
+      (current_time_ns - first_sample_time_ns_) < min_learning_ns) {
     return false;
   }
   // Find the predicted trough time T nearest to current_time_ns (T = last_trough + k*period).

@@ -33,13 +33,15 @@ struct ROSBAG2_CPP_PUBLIC ThroughputPredictorConfig
   // Duration of each bucket for throughput time series (seconds).
   double bucket_duration_sec = 0.5;
   // Minimum number of full cycles observed before enabling prediction.
-  size_t min_cycles_before_predict = 2;
+  size_t min_cycles_before_predict = 3;
+  // Minimum time (seconds) of data to observe before allowing predictions. 0 = no delay.
+  double min_learning_time_sec = 20.0;
   // Half-width of the predicted trough window (seconds). Flush when time is in [trough - w, trough + w].
   double trough_window_half_width_sec = 0.5;
   // Maximum number of (t_ns, bytes) samples to keep in the sliding window.
   size_t max_samples = 10000;
   // Maximum history time (nanoseconds) for samples. Older samples are dropped.
-  int64_t max_history_ns = 10LL * 1000 * 1000 * 1000;  // 10 s
+  int64_t max_history_ns = 20LL * 1000 * 1000 * 1000;  // 20 s
   // Plausible period range for autocorrelation (seconds): [min_period_sec, max_period_sec].
   double min_period_sec = 2.0;
   double max_period_sec = 15.0;
@@ -80,6 +82,7 @@ private:
   ThroughputPredictorConfig config_;
   std::deque<std::pair<int64_t, size_t>> samples_;
   size_t feed_count_ = 0;  // throttle bucket/period updates
+  int64_t first_sample_time_ns_ = -1;  // set on first feed(), used for min_learning_time
 
   // Bucketed throughput: bucket_start_ns -> (sum_bytes, count).
   std::vector<std::pair<int64_t, std::pair<uint64_t, size_t>>> buckets_;
