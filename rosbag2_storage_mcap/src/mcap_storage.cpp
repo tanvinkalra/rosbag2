@@ -47,6 +47,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cinttypes>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -701,17 +702,21 @@ void MCAPStorage::write(
   const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & msgs,
   bool flush_after)
 {
+  RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "MCAPStorage::write entry n=%zu flush_after=%d", msgs.size(), flush_after ? 1 : 0);
   std::lock_guard<std::mutex> lock(mcap_storage_mutex_);
   const size_t n = msgs.size();
   for (size_t i = 0; i < n; ++i) {
+    RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "MCAPStorage::write loop i=%zu n=%zu do_flush=%d", i, n, ((i == n - 1) && flush_after) ? 1 : 0);
     write_lock_free(msgs[i], (i == n - 1) && flush_after);
   }
+  RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "MCAPStorage::write exit");
 }
 
 void MCAPStorage::write_lock_free(
   std::shared_ptr<const rosbag2_storage::SerializedBagMessage> msg,
   bool flush_after)
 {
+  RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "write_lock_free entry topic=%s flush_after=%d", msg ? msg->topic_name.c_str() : "(null)", flush_after ? 1 : 0);
   const auto topic_it = topics_.find(msg->topic_name);
   if (topic_it == topics_.end()) {
     throw std::runtime_error{"Unknown message topic \"" + msg->topic_name + "\""};
@@ -734,7 +739,9 @@ void MCAPStorage::write_lock_free(
   mcap_msg.publishTime = mcap_msg.logTime;
   mcap_msg.dataSize = msg->serialized_data->buffer_length;
   mcap_msg.data = reinterpret_cast<const std::byte *>(msg->serialized_data->buffer);
+  RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "write_lock_free calling mcap_writer_->write dataSize=%" PRIu64 " flush_after=%d", mcap_msg.dataSize, flush_after ? 1 : 0);
   const auto status = mcap_writer_->write(mcap_msg, flush_after);
+  RCUTILS_LOG_DEBUG_NAMED(LOG_NAME, "write_lock_free mcap_writer_->write returned ok=%d", status.ok() ? 1 : 0);
   if (!status.ok()) {
     throw std::runtime_error{std::string{"Failed to write "} +
                              std::to_string(msg->serialized_data->buffer_length) +

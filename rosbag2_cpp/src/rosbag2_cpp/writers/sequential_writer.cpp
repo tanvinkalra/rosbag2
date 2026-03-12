@@ -464,6 +464,7 @@ void SequentialWriter::finalize_metadata()
 void SequentialWriter::write_messages(
   const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & messages)
 {
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("write_messages: entry messages.size()=" << messages.size());
   if (messages.empty()) {
     return;
   }
@@ -471,6 +472,7 @@ void SequentialWriter::write_messages(
 
   const auto t_before_storage = std::chrono::steady_clock::now();
   bool flush_after = false;
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("write_messages: before predictor check throughput_predictor_=" << (throughput_predictor_ ? "non-null" : "null"));
   if (throughput_predictor_ && !messages.empty()) {
     const int64_t last_ts = messages.back()->time_stamp;
     if (throughput_predictor_->is_in_predicted_trough_now(last_ts) &&
@@ -481,7 +483,9 @@ void SequentialWriter::write_messages(
       ROSBAG2_CPP_LOG_INFO("Throughput predictor: force fsync requested (low-throughput window)");
     }
   }
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("write_messages: calling storage_->write messages.size()=" << messages.size() << " flush_after=" << flush_after);
   storage_->write(messages, flush_after);
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("write_messages: storage_->write returned");
   const auto t_after_storage = std::chrono::steady_clock::now();
 
   if (storage_options_.snapshot_mode) {
