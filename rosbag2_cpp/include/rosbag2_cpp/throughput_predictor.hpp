@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <deque>
+#include <mutex>
 #include <vector>
 
 #include "rosbag2_cpp/visibility_control.hpp"
@@ -85,6 +86,7 @@ private:
   std::deque<std::pair<int64_t, size_t>> samples_;
   size_t feed_count_ = 0;  // throttle bucket/period updates
   int64_t first_sample_time_ns_ = -1;  // set on first feed(), used for min_learning_time
+  mutable std::mutex mutex_;  // protects all members (feed() and is_in_predicted_trough_now() are called from different threads)
 
   // Bucketed throughput: bucket_start_ns -> sum_bytes.
   std::vector<std::pair<int64_t, uint64_t>> buckets_;
