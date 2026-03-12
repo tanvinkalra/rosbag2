@@ -165,13 +165,7 @@ bool ThroughputPredictor::in_trough_window(int64_t t_ns, int64_t trough_ns) cons
 {
   const int64_t half_ns = static_cast<int64_t>(
     config_.trough_window_half_width_sec * NSEC_PER_SEC);
-  if (std::abs(t_ns - trough_ns) > half_ns) {
-    return false;
-  }
-  if (config_.trigger_only_after_peak) {
-    return t_ns <= trough_ns;  // descending phase only (just after peak)
-  }
-  return true;
+  return std::abs(t_ns - trough_ns) <= half_ns;
 }
 
 bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) const
