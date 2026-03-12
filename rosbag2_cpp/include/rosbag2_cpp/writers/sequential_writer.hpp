@@ -184,10 +184,9 @@ private:
 
   bag_events::EventCallbackManager callback_manager_;
 
-  // Throughput-based predictive flush
+  // Throughput-based predictive flush (cache path only, evaluated in write_messages)
   std::unique_ptr<ThroughputPredictor> throughput_predictor_;
   int64_t last_flush_time_ns_ {0};
-  std::atomic<bool> flush_after_next_batch_ {false};
   static constexpr int64_t kMinFlushIntervalNs = 2LL * 1000 * 1000 * 1000;  // 2 s
 };
 
