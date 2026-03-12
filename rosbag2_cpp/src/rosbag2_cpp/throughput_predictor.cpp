@@ -109,12 +109,28 @@ void ThroughputPredictor::estimate_period_and_phase()
       (static_cast<double>(b.second) / bucket_sec) : 0.0;
     tp.emplace_back(b.first, rate);
   }
-  // Find local minima (troughs): bucket index where throughput is lower than neighbors
-  std::vector<int64_t> trough_times_ns;
-  trough_times_ns.reserve(tp.size() / 2u);
+  // Find local minima and their dip depth (peak - trough); peak = max(neighbors)
+  std::vector<std::pair<int64_t, double>> candidates;
+  candidates.reserve(tp.size() / 2u);
   for (size_t i = 1; i + 1 < tp.size(); ++i) {
     if (tp[i].second <= tp[i - 1].second && tp[i].second <= tp[i + 1].second) {
-      trough_times_ns.push_back(tp[i].first);
+      const double peak = std::max(tp[i - 1].second, tp[i + 1].second);
+      const double dip = peak - tp[i].second;
+      candidates.emplace_back(tp[i].first, dip);
+    }
+  }
+  double max_dip = 0.0;
+  for (const auto & c : candidates) {
+    if (c.second > max_dip) {
+      max_dip = c.second;
+    }
+  }
+  std::vector<int64_t> trough_times_ns;
+  trough_times_ns.reserve(candidates.size());
+  const double min_dip = config_.min_trough_dip_ratio * max_dip;
+  for (const auto & c : candidates) {
+    if (max_dip <= 0.0 || config_.min_trough_dip_ratio <= 0.0 || c.second >= min_dip) {
+      trough_times_ns.push_back(c.first);
     }
   }
   if (trough_times_ns.size() < 2) {

@@ -36,6 +36,8 @@ struct ROSBAG2_CPP_PUBLIC ThroughputPredictorConfig
   size_t min_cycles_before_predict = 3;
   // Minimum time (seconds) of data to observe before allowing predictions. 0 = no delay.
   double min_learning_time_sec = 20.0;
+  // Minimum dip (as fraction of max dip) to count as trough; 0 = any local minimum.
+  double min_trough_dip_ratio = 0.30;
   // Half-width of the predicted trough window (seconds). Flush when time is in [trough - w, trough + w].
   double trough_window_half_width_sec = 0.5;
   // Maximum number of (t_ns, bytes) samples to keep in the sliding window.
