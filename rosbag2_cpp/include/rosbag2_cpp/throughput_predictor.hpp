@@ -40,6 +40,8 @@ struct ROSBAG2_CPP_PUBLIC ThroughputPredictorConfig
   double min_trough_dip_ratio = 0.30;
   // Half-width of the predicted trough window (seconds). Flush when time is in [trough - w, trough + w].
   double trough_window_half_width_sec = 0.5;
+  // If true, only trigger in the descending phase (t <= trough), i.e. just after peak, not when peak is forming.
+  bool trigger_only_after_peak = true;
   // Maximum number of (t_ns, bytes) samples to keep in the sliding window.
   size_t max_samples = 10000;
   // Maximum history time (nanoseconds) for samples. Older samples are dropped.
