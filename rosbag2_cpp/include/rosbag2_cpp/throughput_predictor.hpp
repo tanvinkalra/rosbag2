@@ -84,8 +84,8 @@ private:
   size_t feed_count_ = 0;  // throttle bucket/period updates
   int64_t first_sample_time_ns_ = -1;  // set on first feed(), used for min_learning_time
 
-  // Bucketed throughput: bucket_start_ns -> (sum_bytes, count).
-  std::vector<std::pair<int64_t, std::pair<uint64_t, size_t>>> buckets_;
+  // Bucketed throughput: bucket_start_ns -> sum_bytes.
+  std::vector<std::pair<int64_t, uint64_t>> buckets_;
   int64_t period_ns_ = 0;
   int64_t last_trough_ns_ = 0;
   int64_t next_trough_ns_ = 0;

@@ -78,22 +78,19 @@ void ThroughputPredictor::update_buckets()
   }
   int64_t bucket_start = (samples_.front().first / bucket_ns) * bucket_ns;
   uint64_t sum_bytes = 0;
-  size_t count = 0;
   for (const auto & s : samples_) {
     int64_t b = (s.first / bucket_ns) * bucket_ns;
     if (b != bucket_start) {
-      if (count > 0) {
-        buckets_.emplace_back(bucket_start, std::make_pair(sum_bytes, count));
+      if (sum_bytes > 0) {
+        buckets_.emplace_back(bucket_start, sum_bytes);
       }
       bucket_start = b;
       sum_bytes = 0;
-      count = 0;
     }
     sum_bytes += s.second;
-    count++;
   }
-  if (count > 0) {
-    buckets_.emplace_back(bucket_start, std::make_pair(sum_bytes, count));
+  if (sum_bytes > 0) {
+    buckets_.emplace_back(bucket_start, sum_bytes);
   }
 }
 
@@ -108,8 +105,8 @@ void ThroughputPredictor::estimate_period_and_phase()
   std::vector<std::pair<int64_t, double>> tp;
   tp.reserve(buckets_.size());
   for (const auto & b : buckets_) {
-    double rate = (bucket_sec > 0 && b.second.second > 0) ?
-      (static_cast<double>(b.second.first) / bucket_sec) : 0.0;
+    double rate = (bucket_sec > 0 && b.second > 0) ?
+      (static_cast<double>(b.second) / bucket_sec) : 0.0;
     tp.emplace_back(b.first, rate);
   }
   // Find local minima (troughs): bucket index where throughput is lower than neighbors
