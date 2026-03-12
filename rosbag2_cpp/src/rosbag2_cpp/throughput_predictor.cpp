@@ -28,7 +28,7 @@ namespace
 {
 constexpr int64_t NSEC_PER_SEC = 1000LL * 1000 * 1000;
 // Run full bucket rebuild and period estimation every N feeds to amortize cost.
-constexpr size_t kFeedThrottleInterval = 100;
+constexpr size_t kFeedThrottleInterval = 50;
 }
 
 ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & config)
