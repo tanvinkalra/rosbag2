@@ -95,9 +95,7 @@ struct McapWriterOptions : mcap::McapWriterOptions
 {
   McapWriterOptions()
       : mcap::McapWriterOptions("ros2")
-  {
-    fsyncIntervalBytes = 1000ULL * 1024 * 1024;
-  }
+  {}
 };
 }  // namespace
 
@@ -139,7 +137,6 @@ struct convert<McapWriterOptions>
     optional_assign<bool>(node, "noMessageIndex", o.noMessageIndex);
     optional_assign<bool>(node, "noSummary", o.noSummary);
     optional_assign<uint64_t>(node, "chunkSize", o.chunkSize);
-    optional_assign<uint64_t>(node, "fsyncIntervalBytes", o.fsyncIntervalBytes);
     optional_assign<mcap::Compression>(node, "compression", o.compression);
     optional_assign<mcap::CompressionLevel>(node, "compressionLevel", o.compressionLevel);
     optional_assign<bool>(node, "forceCompression", o.forceCompression);
