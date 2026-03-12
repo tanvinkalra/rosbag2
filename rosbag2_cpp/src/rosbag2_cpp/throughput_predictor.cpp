@@ -181,7 +181,16 @@ bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) co
   // Find the predicted trough time T nearest to current_time_ns (T = last_trough + k*period).
   const int64_t k = (current_time_ns - last_trough_ns_) / period_ns_;
   const int64_t trough = last_trough_ns_ + k * period_ns_;
-  return in_trough_window(current_time_ns, trough);
+  ROSBAG2_CPP_LOG_DEBUG_STREAM(
+    "Throughput predictor: current_time_ns=" << current_time_ns
+    << " last_trough_ns_=" << last_trough_ns_
+    << " period_ns_=" << period_ns_
+    << " k=" << k
+    << " predicted_trough_ns=" << trough);
+  const bool in_window = in_trough_window(current_time_ns, trough);
+  ROSBAG2_CPP_LOG_DEBUG_STREAM(
+    "Throughput predictor: in_trough_window=" << in_window);
+  return in_window;
 }
 
 int64_t ThroughputPredictor::get_next_trough_time_ns() const
