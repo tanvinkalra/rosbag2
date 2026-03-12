@@ -20,7 +20,6 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -40,7 +39,6 @@ ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & confi
 
 void ThroughputPredictor::feed(int64_t timestamp_ns, size_t bytes)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   if (samples_.empty() && first_sample_time_ns_ < 0) {
     first_sample_time_ns_ = timestamp_ns;
   }
@@ -174,7 +172,6 @@ bool ThroughputPredictor::in_trough_window(int64_t t_ns, int64_t trough_ns) cons
 
 bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   if (!ready_ || period_ns_ <= 0) {
     return false;
   }
@@ -194,13 +191,11 @@ bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) co
 
 int64_t ThroughputPredictor::get_next_trough_time_ns() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   return ready_ ? next_trough_ns_ : 0;
 }
 
 bool ThroughputPredictor::is_ready() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   return ready_;
 }
 
