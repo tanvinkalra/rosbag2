@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,8 @@ namespace rosbag2_cpp
 namespace
 {
 constexpr int64_t NSEC_PER_SEC = 1000LL * 1000 * 1000;
+// Run full bucket rebuild and period estimation every N feeds to amortize cost.
+constexpr size_t kFeedThrottleInterval = 100;
 }
 
 ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & config)
@@ -35,13 +38,17 @@ ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & confi
 void ThroughputPredictor::feed(int64_t timestamp_ns, size_t bytes)
 {
   if (config_.max_samples > 0 && samples_.size() >= config_.max_samples) {
-    // Circular: remove oldest (we keep vector for simplicity; could use deque or ring)
-    samples_.erase(samples_.begin());
+    samples_.pop_front();
   }
   samples_.emplace_back(timestamp_ns, bytes);
   prune_old_samples(timestamp_ns);
-  update_buckets();
-  estimate_period_and_phase();
+
+  ++feed_count_;
+  // Throttle heavy work: run every N feeds, plus once at start to bootstrap
+  if (feed_count_ == 1 || feed_count_ % kFeedThrottleInterval == 0) {
+    update_buckets();
+    estimate_period_and_phase();
+  }
 }
 
 void ThroughputPredictor::prune_old_samples(int64_t now_ns)
@@ -49,12 +56,10 @@ void ThroughputPredictor::prune_old_samples(int64_t now_ns)
   if (config_.max_history_ns <= 0) {
     return;
   }
-  int64_t cutoff = now_ns - config_.max_history_ns;
-  samples_.erase(
-    std::remove_if(
-      samples_.begin(), samples_.end(),
-      [cutoff](const std::pair<int64_t, size_t> & p) { return p.first < cutoff; }),
-    samples_.end());
+  const int64_t cutoff = now_ns - config_.max_history_ns;
+  while (!samples_.empty() && samples_.front().first < cutoff) {
+    samples_.pop_front();
+  }
 }
 
 void ThroughputPredictor::update_buckets()
@@ -96,8 +101,9 @@ void ThroughputPredictor::estimate_period_and_phase()
     return;
   }
   // Throughput per bucket (bytes/sec)
-  std::vector<std::pair<int64_t, double>> tp;
   const double bucket_sec = config_.bucket_duration_sec;
+  std::vector<std::pair<int64_t, double>> tp;
+  tp.reserve(buckets_.size());
   for (const auto & b : buckets_) {
     double rate = (bucket_sec > 0 && b.second.second > 0) ?
       (static_cast<double>(b.second.first) / bucket_sec) : 0.0;
@@ -105,6 +111,7 @@ void ThroughputPredictor::estimate_period_and_phase()
   }
   // Find local minima (troughs): bucket index where throughput is lower than neighbors
   std::vector<int64_t> trough_times_ns;
+  trough_times_ns.reserve(tp.size() / 2u);
   for (size_t i = 1; i + 1 < tp.size(); ++i) {
     if (tp[i].second <= tp[i - 1].second && tp[i].second <= tp[i + 1].second) {
       trough_times_ns.push_back(tp[i].first);
@@ -114,13 +121,15 @@ void ThroughputPredictor::estimate_period_and_phase()
     ready_ = false;
     return;
   }
-  // Median interval between consecutive troughs = period
+  // Median interval between consecutive troughs = period (nth_element is O(n) vs sort O(n log n))
   std::vector<int64_t> intervals;
+  intervals.reserve(trough_times_ns.size() - 1);
   for (size_t i = 1; i < trough_times_ns.size(); ++i) {
     intervals.push_back(trough_times_ns[i] - trough_times_ns[i - 1]);
   }
-  std::sort(intervals.begin(), intervals.end());
-  int64_t period_ns_candidate = intervals[intervals.size() / 2];
+  const size_t mid = intervals.size() / 2;
+  std::nth_element(intervals.begin(), intervals.begin() + mid, intervals.end());
+  int64_t period_ns_candidate = intervals[mid];
   const int64_t min_period_ns = static_cast<int64_t>(config_.min_period_sec * NSEC_PER_SEC);
   const int64_t max_period_ns = static_cast<int64_t>(config_.max_period_sec * NSEC_PER_SEC);
   if (period_ns_candidate < min_period_ns || period_ns_candidate > max_period_ns) {

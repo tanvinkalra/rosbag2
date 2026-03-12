@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <deque>
 #include <vector>
 
 #include "rosbag2_cpp/visibility_control.hpp"
@@ -77,8 +78,8 @@ private:
   bool in_trough_window(int64_t t_ns, int64_t trough_ns) const;
 
   ThroughputPredictorConfig config_;
-  std::vector<std::pair<int64_t, size_t>> samples_;
-  size_t sample_index_ = 0;  // for circular overwrite if we cap by count
+  std::deque<std::pair<int64_t, size_t>> samples_;
+  size_t feed_count_ = 0;  // throttle bucket/period updates
 
   // Bucketed throughput: bucket_start_ns -> (sum_bytes, count).
   std::vector<std::pair<int64_t, std::pair<uint64_t, size_t>>> buckets_;
