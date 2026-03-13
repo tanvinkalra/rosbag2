@@ -47,6 +47,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cinttypes>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -735,7 +736,7 @@ void MCAPStorage::write_lock_free(
   mcap_msg.dataSize = msg->serialized_data->buffer_length;
   mcap_msg.data = reinterpret_cast<const std::byte *>(msg->serialized_data->buffer);
   if (flush_after) {
-    RCUTILS_LOG_INFO_NAMED(LOG_NAME, "MCAP write with flush_after=true (fsync requested) topic=%s dataSize=%" PRIu64, msg->topic_name.c_str(), mcap_msg.dataSize);
+    RCUTILS_LOG_INFO_NAMED(LOG_NAME, "MCAP write with flush_after=true (fsync requested) topic=%s dataSize=%llu", msg->topic_name.c_str(), static_cast<unsigned long long>(mcap_msg.dataSize));
   }
   const auto status = mcap_writer_->write(mcap_msg, flush_after);
   if (!status.ok()) {
