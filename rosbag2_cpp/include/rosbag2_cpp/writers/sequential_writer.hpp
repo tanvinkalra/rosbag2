@@ -183,13 +183,11 @@ private:
   {
     double timestamp_s;
     double elapsed_s;
-    int64_t message_timestamp_ns;
     std::string topic;
     size_t bytes;
   };
 
-  void record_throughput_sample(
-    const std::string & topic, size_t bytes, int64_t message_timestamp_ns);
+  void record_throughput_sample(const std::string & topic, size_t bytes);
   void flush_throughput_log();
 
   /// Helper method to write messages while also updating tracked metadata.

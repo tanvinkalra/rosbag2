@@ -402,7 +402,7 @@ void SequentialWriter::write(std::shared_ptr<rosbag2_storage::SerializedBagMessa
   auto converted_msg = get_writeable_message(message);
   const size_t bytes = converted_msg->serialized_data ?
     static_cast<size_t>(converted_msg->serialized_data->buffer_length) : 0u;
-  record_throughput_sample(message->topic_name, bytes, message->time_stamp);
+  record_throughput_sample(message->topic_name, bytes);
 
   if (throughput_predictor_) {
     throughput_predictor_->feed(message->time_stamp, bytes);
@@ -419,7 +419,7 @@ void SequentialWriter::write(std::shared_ptr<rosbag2_storage::SerializedBagMessa
 }
 
 void SequentialWriter::record_throughput_sample(
-  const std::string & topic, size_t bytes, int64_t message_timestamp_ns)
+  const std::string & topic, size_t bytes)
 {
   const auto now = std::chrono::system_clock::now();
   const auto timestamp_s = std::chrono::duration<double>(now.time_since_epoch()).count();
@@ -430,7 +430,7 @@ void SequentialWriter::record_throughput_sample(
   }
   const auto elapsed_s = std::chrono::duration<double>(now - throughput_log_start_time_).count();
   throughput_log_entries_.push_back(
-    ThroughputLogEntry{timestamp_s, elapsed_s, message_timestamp_ns, topic, bytes});
+    ThroughputLogEntry{timestamp_s, elapsed_s, topic, bytes});
 }
 
 void SequentialWriter::flush_throughput_log()
@@ -453,12 +453,11 @@ void SequentialWriter::flush_throughput_log()
     return;
   }
 
-  out << "timestamp,elapsed_s,message_timestamp_ns,topic,bytes\n";
+  out << "timestamp,elapsed_s,topic,bytes\n";
   out << std::fixed << std::setprecision(7);
   for (const auto & entry : entries) {
     out << entry.timestamp_s << "," << entry.elapsed_s << ","
-        << entry.message_timestamp_ns << "," << escape_csv_field(entry.topic) << ","
-        << entry.bytes << "\n";
+        << escape_csv_field(entry.topic) << "," << entry.bytes << "\n";
   }
 }
 
