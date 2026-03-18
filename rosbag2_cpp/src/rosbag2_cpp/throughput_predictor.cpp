@@ -29,8 +29,8 @@ namespace rosbag2_cpp
 namespace
 {
 constexpr int64_t NSEC_PER_SEC = 1000LL * 1000 * 1000;
-// Run full bucket rebuild and period estimation every N feeds to amortize cost.
-constexpr size_t kFeedThrottleInterval = 50;
+// Run full bucket rebuild and period estimation every N seconds.
+constexpr int64_t kEstimationIntervalNs = 1LL * NSEC_PER_SEC;  // 1 s
 }
 
 ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & config)
@@ -48,11 +48,14 @@ void ThroughputPredictor::feed(int64_t timestamp_ns, size_t bytes)
   samples_.emplace_back(timestamp_ns, bytes);
   prune_old_samples(timestamp_ns);
 
-  ++feed_count_;
-  // Throttle heavy work: run every N feeds, plus once at start to bootstrap
-  if (feed_count_ == 1 || feed_count_ % kFeedThrottleInterval == 0) {
+  (void)feed_count_;  // kept for backward compatibility; throttling is time-based now.
+  // Throttle heavy work using message timestamps (time-based rather than count-based).
+  if (last_estimation_time_ns_ < 0 ||
+    (timestamp_ns - last_estimation_time_ns_) >= kEstimationIntervalNs)
+  {
     update_buckets();
     estimate_period_and_phase();
+    last_estimation_time_ns_ = timestamp_ns;
   }
 }
 

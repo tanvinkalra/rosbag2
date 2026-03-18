@@ -86,6 +86,10 @@ private:
   size_t feed_count_ = 0;  // throttle bucket/period updates
   int64_t first_sample_time_ns_ = -1;  // set on first feed(), used for min_learning_time
 
+  // Timestamp (ns) of the last time we recomputed buckets/period/phase.
+  // Used to run the heavy estimator on a time basis (e.g., every 1s).
+  int64_t last_estimation_time_ns_ = -1;
+
   // Bucketed throughput: bucket_start_ns -> sum_bytes.
   std::vector<std::pair<int64_t, uint64_t>> buckets_;
   int64_t period_ns_ = 0;
