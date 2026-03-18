@@ -191,41 +191,45 @@ void ThroughputPredictor::estimate_period_and_phase()
     return;
   }
 
-  // Derive phase for the dominant bin and compute the time of the last trough
-  // (minimum) within the current window. Model as A * cos(2π t / T + phi).
+  // Derive phase for the dominant bin and compute the time of the last peak
+  // (maximum) within the current window. Model as A * cos(2π t / T + phi).
+  // Peak of cos occurs when the argument is 0, i.e. t_peak = -phi / (2π) * T.
   const double phi = std::atan2(best_im, best_re);
   const double period_sec = static_cast<double>(period_ns_) / static_cast<double>(NSEC_PER_SEC);
 
-  // Time of first minimum relative to start of window in [0, T).
-  const double t_min_base =
-    std::fmod(((M_PI - phi) / (2.0 * M_PI)) * period_sec, period_sec);
-
-  const double t_window_max = window_sec;
-  double last_min_rel = t_min_base;
-  if (t_window_max > t_min_base) {
-    const double extra = t_window_max - t_min_base;
-    const double cycles = std::floor(extra / period_sec);
-    last_min_rel = t_min_base + cycles * period_sec;
+  // Time of first peak relative to start of window, wrapped into [0, T).
+  double t_peak_base = (-phi / (2.0 * M_PI)) * period_sec;
+  t_peak_base = std::fmod(t_peak_base, period_sec);
+  if (t_peak_base < 0.0) {
+    t_peak_base += period_sec;
   }
 
-  const int64_t last_min_offset_ns =
-    static_cast<int64_t>(last_min_rel * static_cast<double>(NSEC_PER_SEC));
-  last_trough_ns_ = first_bucket_ns + last_min_offset_ns;
-  next_trough_ns_ = last_trough_ns_ + period_ns_;
+  const double t_window_max = window_sec;
+  double last_peak_rel = t_peak_base;
+  if (t_window_max > t_peak_base) {
+    const double extra = t_window_max - t_peak_base;
+    const double cycles = std::floor(extra / period_sec);
+    last_peak_rel = t_peak_base + cycles * period_sec;
+  }
+
+  const int64_t last_peak_offset_ns =
+    static_cast<int64_t>(last_peak_rel * static_cast<double>(NSEC_PER_SEC));
+  last_peak_ns_ = first_bucket_ns + last_peak_offset_ns;
+  next_peak_ns_ = last_peak_ns_ + period_ns_;
 
   // Require at least min_cycles_before_predict cycles within the window.
   const double cycles_observed = window_sec / period_sec;
   ready_ = cycles_observed >= static_cast<double>(config_.min_cycles_before_predict);
 }
 
-bool ThroughputPredictor::in_trough_window(int64_t t_ns, int64_t trough_ns) const
+bool ThroughputPredictor::in_flush_window(int64_t t_ns, int64_t peak_ns) const
 {
   const int64_t half_ns = static_cast<int64_t>(
-    config_.trough_window_half_width_sec * NSEC_PER_SEC);
-  return std::abs(t_ns - trough_ns) <= half_ns;
+    config_.flush_window_half_width_sec * NSEC_PER_SEC);
+  return std::abs(t_ns - peak_ns) <= half_ns;
 }
 
-bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) const
+bool ThroughputPredictor::is_in_predicted_flush_window(int64_t current_time_ns) const
 {
   if (!ready_ || period_ns_ <= 0) {
     return false;
@@ -235,18 +239,18 @@ bool ThroughputPredictor::is_in_predicted_trough_now(int64_t current_time_ns) co
       (current_time_ns - first_sample_time_ns_) < min_learning_ns) {
     return false;
   }
-  // Find the predicted trough time T nearest to current_time_ns (T = last_trough + k*period).
-  const int64_t k = (current_time_ns - last_trough_ns_) / period_ns_;
-  const int64_t trough = last_trough_ns_ + k * period_ns_;
-  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: current_time_ns=" << current_time_ns << " last_trough_ns_=" << last_trough_ns_ << " period_ns_=" << period_ns_ << " k=" << k << " predicted_trough_ns=" << trough);
-  const bool in_window = in_trough_window(current_time_ns, trough);
-  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: in_trough_window=" << in_window);
+  // Find the predicted peak time nearest to current_time_ns (P = last_peak + k*period).
+  const int64_t k = (current_time_ns - last_peak_ns_) / period_ns_;
+  const int64_t peak = last_peak_ns_ + k * period_ns_;
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: current_time_ns=" << current_time_ns << " last_peak_ns_=" << last_peak_ns_ << " period_ns_=" << period_ns_ << " k=" << k << " predicted_peak_ns=" << peak);
+  const bool in_window = in_flush_window(current_time_ns, peak);
+  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: in_flush_window=" << in_window);
   return in_window;
 }
 
-int64_t ThroughputPredictor::get_next_trough_time_ns() const
+int64_t ThroughputPredictor::get_next_peak_time_ns() const
 {
-  return ready_ ? next_trough_ns_ : 0;
+  return ready_ ? next_peak_ns_ : 0;
 }
 
 bool ThroughputPredictor::is_ready() const

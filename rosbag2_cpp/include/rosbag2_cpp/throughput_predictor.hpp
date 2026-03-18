@@ -38,8 +38,8 @@ struct ROSBAG2_CPP_PUBLIC ThroughputPredictorConfig
   double min_learning_time_sec = 20.0;
   // Minimum dip (as fraction of max dip) to count as trough; 0 = any local minimum.
   double min_trough_dip_ratio = 0.30;
-  // Half-width of the predicted trough window (seconds). Flush when time is in [trough - w, trough + w].
-  double trough_window_half_width_sec = 0.5;
+  // Half-width of the predicted flush window around the peak (seconds).
+  double flush_window_half_width_sec = 0.5;
   // Maximum number of (t_ns, bytes) samples to keep in the sliding window.
   size_t max_samples = 10000;
   // Maximum history time (nanoseconds) for samples. Older samples are dropped.
@@ -64,13 +64,14 @@ public:
   void feed(int64_t timestamp_ns, size_t bytes);
 
   /**
-   * Return true if current time is inside a predicted low-throughput window.
-   * Caller should trigger flush at most once per window (e.g. track last flush time).
+   * Return true if current time is inside a predicted flush window (near the throughput peak).
+   * Flushing at the peak gives the kernel the entire downslope + trough to complete writeback
+   * before the next burst arrives.
    */
-  bool is_in_predicted_trough_now(int64_t current_time_ns) const;
+  bool is_in_predicted_flush_window(int64_t current_time_ns) const;
 
-  /** Optional: get predicted next trough time (nanoseconds) for logging. Returns 0 if unknown. */
-  int64_t get_next_trough_time_ns() const;
+  /** Optional: get predicted next peak time (nanoseconds) for logging. Returns 0 if unknown. */
+  int64_t get_next_peak_time_ns() const;
 
   /** Whether the predictor has enough data to produce predictions. */
   bool is_ready() const;
@@ -79,7 +80,7 @@ private:
   void prune_old_samples(int64_t now_ns);
   void update_buckets();
   void estimate_period_and_phase();
-  bool in_trough_window(int64_t t_ns, int64_t trough_ns) const;
+  bool in_flush_window(int64_t t_ns, int64_t peak_ns) const;
 
   ThroughputPredictorConfig config_;
   std::deque<std::pair<int64_t, size_t>> samples_;
@@ -93,8 +94,8 @@ private:
   // Bucketed throughput: bucket_start_ns -> sum_bytes.
   std::vector<std::pair<int64_t, uint64_t>> buckets_;
   int64_t period_ns_ = 0;
-  int64_t last_trough_ns_ = 0;
-  int64_t next_trough_ns_ = 0;
+  int64_t last_peak_ns_ = 0;
+  int64_t next_peak_ns_ = 0;
   bool ready_ = false;
 };
 

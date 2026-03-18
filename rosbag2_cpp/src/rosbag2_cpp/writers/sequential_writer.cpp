@@ -541,12 +541,12 @@ void SequentialWriter::write_messages(
   bool flush_after = false;
   if (throughput_predictor_ && !messages.empty()) {
     const int64_t last_ts = messages.back()->time_stamp;
-    if (throughput_predictor_->is_in_predicted_trough_now(last_ts) &&
+    if (throughput_predictor_->is_in_predicted_flush_window(last_ts) &&
       (last_ts - last_flush_time_ns_ >= kMinFlushIntervalNs))
     {
       flush_after = true;
       last_flush_time_ns_ = last_ts;
-      ROSBAG2_CPP_LOG_INFO("Throughput predictor: force fsync requested (low-throughput window)");
+      ROSBAG2_CPP_LOG_INFO("Throughput predictor: force fsync at predicted peak (max time before next burst)");
     }
   }
   storage_->write(messages, flush_after);
