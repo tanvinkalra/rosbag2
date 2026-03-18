@@ -16,6 +16,8 @@
 #define ROSBAG2_CPP__WRITERS__SEQUENTIAL_WRITER_HPP_
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -177,10 +179,27 @@ protected:
     std::shared_ptr<rosbag2_storage::SerializedBagMessage> message);
 
 private:
+  struct ThroughputLogEntry
+  {
+    double timestamp_s;
+    double elapsed_s;
+    int64_t message_timestamp_ns;
+    std::string topic;
+    size_t bytes;
+  };
+
+  void record_throughput_sample(
+    const std::string & topic, size_t bytes, int64_t message_timestamp_ns);
+  void flush_throughput_log();
+
   /// Helper method to write messages while also updating tracked metadata.
   void write_messages(
     const std::vector<std::shared_ptr<const rosbag2_storage::SerializedBagMessage>> & messages);
   bool is_first_message_ {true};
+
+  std::vector<ThroughputLogEntry> throughput_log_entries_;
+  bool throughput_log_has_start_time_ {false};
+  std::chrono::time_point<std::chrono::system_clock> throughput_log_start_time_;
 
   bag_events::EventCallbackManager callback_manager_;
 

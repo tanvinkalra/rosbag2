@@ -16,10 +16,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -43,6 +45,26 @@ namespace
 std::string strip_parent_path(const std::string & relative_path)
 {
   return rcpputils::fs::path(relative_path).filename().string();
+}
+
+std::string escape_csv_field(const std::string & value)
+{
+  bool needs_quotes = false;
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (const char c : value) {
+    if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+      needs_quotes = true;
+    }
+    if (c == '"') {
+      escaped.push_back('"');
+    }
+    escaped.push_back(c);
+  }
+  if (!needs_quotes) {
+    return escaped;
+  }
+  return "\"" + escaped + "\"";
 }
 }  // namespace
 
@@ -172,6 +194,8 @@ void SequentialWriter::close()
     cache_consumer_.reset();
     message_cache_.reset();
   }
+
+  flush_throughput_log();
 
   if (!base_folder_.empty()) {
     finalize_metadata();
@@ -376,10 +400,11 @@ void SequentialWriter::write(std::shared_ptr<rosbag2_storage::SerializedBagMessa
     std::max(metadata_.files.back().duration, file_duration);
 
   auto converted_msg = get_writeable_message(message);
+  const size_t bytes = converted_msg->serialized_data ?
+    static_cast<size_t>(converted_msg->serialized_data->buffer_length) : 0u;
+  record_throughput_sample(message->topic_name, bytes, message->time_stamp);
 
   if (throughput_predictor_) {
-    const size_t bytes = converted_msg->serialized_data ?
-      static_cast<size_t>(converted_msg->serialized_data->buffer_length) : 0u;
     throughput_predictor_->feed(message->time_stamp, bytes);
   }
 
@@ -390,6 +415,50 @@ void SequentialWriter::write(std::shared_ptr<rosbag2_storage::SerializedBagMessa
     ++topic_information->message_count;
   } else {
     message_cache_->push(converted_msg);
+  }
+}
+
+void SequentialWriter::record_throughput_sample(
+  const std::string & topic, size_t bytes, int64_t message_timestamp_ns)
+{
+  const auto now = std::chrono::system_clock::now();
+  const auto timestamp_s = std::chrono::duration<double>(now.time_since_epoch()).count();
+
+  if (!throughput_log_has_start_time_) {
+    throughput_log_start_time_ = now;
+    throughput_log_has_start_time_ = true;
+  }
+  const auto elapsed_s = std::chrono::duration<double>(now - throughput_log_start_time_).count();
+  throughput_log_entries_.push_back(
+    ThroughputLogEntry{timestamp_s, elapsed_s, message_timestamp_ns, topic, bytes});
+}
+
+void SequentialWriter::flush_throughput_log()
+{
+  if (throughput_log_entries_.empty()) {
+    return;
+  }
+  std::vector<ThroughputLogEntry> entries;
+  entries.swap(throughput_log_entries_);
+  throughput_log_has_start_time_ = false;
+
+  const auto output_path = base_folder_.empty() ?
+    rcpputils::fs::path("throughput_log.csv") :
+    (rcpputils::fs::path(base_folder_) / "throughput_log.csv");
+
+  std::ofstream out(output_path.string(), std::ios::out | std::ios::trunc);
+  if (!out.is_open()) {
+    ROSBAG2_CPP_LOG_WARN_STREAM(
+      "Failed to open throughput log file: " << output_path.string());
+    return;
+  }
+
+  out << "timestamp,elapsed_s,message_timestamp_ns,topic,bytes\n";
+  out << std::fixed << std::setprecision(7);
+  for (const auto & entry : entries) {
+    out << entry.timestamp_s << "," << entry.elapsed_s << ","
+        << entry.message_timestamp_ns << "," << escape_csv_field(entry.topic) << ","
+        << entry.bytes << "\n";
   }
 }
 
