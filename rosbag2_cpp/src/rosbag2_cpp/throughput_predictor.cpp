@@ -30,7 +30,7 @@ namespace
 {
 constexpr int64_t NSEC_PER_SEC = 1000LL * 1000 * 1000;
 // Run full bucket rebuild and period estimation every N seconds.
-constexpr int64_t kEstimationIntervalNs = 1LL * NSEC_PER_SEC;  // 1 s
+constexpr int64_t kEstimationIntervalNs = 4LL * NSEC_PER_SEC;  // 4 s
 }
 
 ThroughputPredictor::ThroughputPredictor(const ThroughputPredictorConfig & config)
