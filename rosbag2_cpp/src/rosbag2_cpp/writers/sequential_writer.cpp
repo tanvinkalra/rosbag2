@@ -539,6 +539,7 @@ void SequentialWriter::write_messages(
 
   const auto t_before_storage = std::chrono::steady_clock::now();
   bool flush_after = false;
+  int64_t flush_trigger_ts = 0;
   if (throughput_predictor_ && !messages.empty()) {
     const int64_t last_ts = messages.back()->time_stamp;
     if (throughput_predictor_->is_in_predicted_flush_window(last_ts) &&
@@ -546,11 +547,18 @@ void SequentialWriter::write_messages(
     {
       flush_after = true;
       last_flush_time_ns_ = last_ts;
-      ROSBAG2_CPP_LOG_INFO("Throughput predictor: force fsync at predicted peak (max time before next burst)");
+      flush_trigger_ts = last_ts;
     }
   }
   storage_->write(messages, flush_after);
   const auto t_after_storage = std::chrono::steady_clock::now();
+  if (flush_after) {
+    const auto flush_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(t_after_storage - t_before_storage).count();
+    ROSBAG2_CPP_LOG_INFO_STREAM(
+      "Throughput predictor: end fsync (requested flush_after=true) trigger_time_ns="
+        << flush_trigger_ts << " storage_us=" << flush_us);
+  }
 
   if (storage_options_.snapshot_mode) {
     // Update FileInformation about the last file in metadata in case of snapshot mode

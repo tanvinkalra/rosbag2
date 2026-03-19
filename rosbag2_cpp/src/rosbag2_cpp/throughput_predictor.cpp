@@ -242,9 +242,12 @@ bool ThroughputPredictor::is_in_predicted_flush_window(int64_t current_time_ns) 
   // Find the predicted peak time nearest to current_time_ns (P = last_peak + k*period).
   const int64_t k = (current_time_ns - last_peak_ns_) / period_ns_;
   const int64_t peak = last_peak_ns_ + k * period_ns_;
-  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: current_time_ns=" << current_time_ns << " last_peak_ns_=" << last_peak_ns_ << " period_ns_=" << period_ns_ << " k=" << k << " predicted_peak_ns=" << peak);
+  ROSBAG2_CPP_LOG_INFO_STREAM(
+    "Throughput predictor: current_time_ns=" << current_time_ns << " last_peak_ns_=" <<
+      last_peak_ns_ << " period_ns_=" << period_ns_ << " k=" << k << " predicted_peak_ns=" <<
+      peak);
   const bool in_window = in_flush_window(current_time_ns, peak);
-  ROSBAG2_CPP_LOG_DEBUG_STREAM("Throughput predictor: in_flush_window=" << in_window);
+  ROSBAG2_CPP_LOG_INFO_STREAM("Throughput predictor: in_flush_window=" << in_window);
   return in_window;
 }
 
