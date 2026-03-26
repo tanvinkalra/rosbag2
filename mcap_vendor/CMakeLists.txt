@@ -32,7 +32,7 @@ endif()
 macro(build_mcap_vendor)
   include(FetchContent)
   fetchcontent_declare(mcap
-    URL https://github.com/tanvinkalra/mcap/archive/refs/tags/v.0.0.31.tar.gz
+    URL https://github.com/tanvinkalra/mcap/archive/refs/tags/v.0.0.32.tar.gz
   )
   fetchcontent_makeavailable(mcap)
 
