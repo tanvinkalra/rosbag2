@@ -37,9 +37,9 @@ bool MessageCacheBuffer::push(CacheBufferInterface::buffer_element_t msg)
     pushed = true;
   }
 
-  if (buffer_bytes_size_ >= max_bytes_size_) {
-    drop_messages_ = true;
-  }
+  // if (buffer_bytes_size_ >= max_bytes_size_) {
+  //   drop_messages_ = true;
+  // }
   return pushed;
 }
 
